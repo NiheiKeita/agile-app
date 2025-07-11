@@ -150,10 +150,20 @@ export const useRoomView = () => {
         // データストリームの受信処理を設定（型アサーションで回避）
         ; (stream as any).onData?.add((data: any) => {
           try {
-            console.log('Raw data stream data:', data)
+            console.log('=== データストリーム受信処理開始 ===')
+            console.log('生のデータストリームデータ:', data)
+            console.log('データの型:', typeof data)
+            console.log('データの構造:', Object.keys(data || {}))
+
             const messageData = data.data || data
+            console.log('メッセージデータ:', messageData)
+            console.log('メッセージデータの型:', typeof messageData)
+
             const message = JSON.parse(messageData)
-            console.log('Received data stream message:', message)
+            console.log('パースされたメッセージ:', message)
+            console.log('メッセージの型:', message.type)
+            console.log('=== データストリーム受信処理完了 ===')
+
             handleDataMessage(message)
           } catch (err) {
             console.error('データストリームメッセージの解析エラー:', err, 'Raw data:', data)
@@ -363,22 +373,35 @@ export const useRoomView = () => {
     switch (message.type) {
       case 'vote':
         if (message.userId && message.point) {
-          console.log('Processing vote:', message.userId, message.point)
+          console.log('=== 投票受信処理開始 ===')
+          console.log('受信した投票メッセージ:', message)
+          console.log('投票者ID:', message.userId)
+          console.log('投票ポイント:', message.point)
+
           setParticipants(prev => {
-            console.log('Current participants before update:', prev)
+            console.log('更新前の参加者リスト:', prev)
+            console.log('参加者IDの比較:')
+            prev.forEach(p => {
+              console.log(`参加者: ${p.nickname}, ID: ${p.id}, 一致: ${p.id === message.userId}`)
+            })
+
             const updated = prev.map(p => {
               if (p.id === message.userId) {
-                console.log('Found matching participant:', p.nickname, 'updating vote to:', message.point)
+                console.log('一致する参加者を発見:', p.nickname, '投票を更新:', message.point)
 
                 return { ...p, hasVoted: true, vote: message.point }
               }
 
               return p
             })
-            console.log('Updated participants:', updated)
+
+            console.log('更新後の参加者リスト:', updated)
+            console.log('=== 投票受信処理完了 ===')
 
             return updated
           })
+        } else {
+          console.log('投票メッセージが不完全:', message)
         }
         break
 
@@ -411,6 +434,10 @@ export const useRoomView = () => {
 
   // メッセージを送信する共通関数
   const sendMessage = useCallback((message: any) => {
+    console.log('=== メッセージ送信処理開始 ===')
+    console.log('送信するメッセージ:', message)
+    console.log('データストリームの状態:', dataStream ? '利用可能' : '利用不可')
+
     if (!dataStream) {
       console.error('データストリームが利用できません')
 
@@ -418,8 +445,11 @@ export const useRoomView = () => {
     }
 
     try {
-      dataStream.write(JSON.stringify(message))
-      console.log('Message sent:', message)
+      const messageString = JSON.stringify(message)
+      console.log('JSON文字列化されたメッセージ:', messageString)
+      dataStream.write(messageString)
+      console.log('メッセージ送信成功:', message)
+      console.log('=== メッセージ送信処理完了 ===')
     } catch (err) {
       console.error('メッセージ送信エラー:', err)
     }
@@ -430,10 +460,17 @@ export const useRoomView = () => {
     if (!localMember) return
 
     try {
-      console.log('Sending vote:', point)
+      console.log('=== 投票送信処理開始 ===')
+      console.log('投票ポイント:', point)
+      console.log('ローカルメンバー:', localMember)
+      console.log('ローカルメンバーのメタデータ:', localMember.metadata)
+
       // ローカルメンバーのメタデータからuserIdを取得
       const localMetadata = JSON.parse(localMember.metadata || '{}')
       const userId = localMetadata.userId || localMember.id
+
+      console.log('パースしたローカルメタデータ:', localMetadata)
+      console.log('使用するuserId:', userId)
 
       const message = {
         type: 'vote',
@@ -441,11 +478,37 @@ export const useRoomView = () => {
         point,
       }
 
+      console.log('送信するメッセージ:', message)
+
       // SkyWayでメッセージを送信
       sendMessage(message)
 
       // 選択したカードを設定（UI表示用）
       setSelectedCard(point)
+
+      // ローカルでも投票状態を更新（自分自身のメッセージを受信しない場合の対策）
+      setParticipants(prev => {
+        console.log('=== ローカル投票状態更新開始 ===')
+        console.log('更新前の参加者リスト:', prev)
+        console.log('更新対象のuserId:', userId)
+
+        const updated = prev.map(p => {
+          if (p.id === userId) {
+            console.log('ローカルで投票状態を更新:', p.nickname, '投票:', point)
+
+            return { ...p, hasVoted: true, vote: point }
+          }
+
+          return p
+        })
+
+        console.log('更新後の参加者リスト:', updated)
+        console.log('=== ローカル投票状態更新完了 ===')
+
+        return updated
+      })
+
+      console.log('=== 投票送信処理完了 ===')
     } catch (err) {
       console.error('投票送信エラー:', err)
     }
