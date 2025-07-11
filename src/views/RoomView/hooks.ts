@@ -1,13 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
-import {
-  nowInSec,
-  SkyWayAuthToken,
-  uuidV4,
-  SkyWayRoom,
-  SkyWayContext,
-  SkyWayStreamFactory
-} from '@skyway-sdk/room'
 
 export interface Participant {
   id: string
@@ -32,7 +24,7 @@ export const useRoomView = () => {
   const router = useRouter()
   const { roomId, nickname, isFacilitator } = router.query
 
-  const [room, setRoom] = useState<any>(null)
+
   const [localMember, setLocalMember] = useState<any>(null)
   const [dataStream, setDataStream] = useState<any>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
@@ -42,18 +34,34 @@ export const useRoomView = () => {
   const [comment, setComment] = useState('')
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isClient, setIsClient] = useState(false)
 
   const isFacilitatorBool = isFacilitator === 'true'
 
+  // クライアントサイドかどうかを確認
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
   // SkyWayルームに接続
   const connectToRoom = useCallback(async () => {
-    if (!roomId || !nickname) return
+    if (!roomId || !nickname || !isClient) return
 
     setIsConnecting(true)
     setError(null)
 
     try {
       console.log('Connecting to SkyWay room:', roomId, 'as', nickname)
+
+      // SkyWay SDKを動的インポート（SSR回避）
+      const {
+        nowInSec,
+        SkyWayAuthToken,
+        uuidV4,
+        SkyWayRoom,
+        SkyWayContext,
+        SkyWayStreamFactory
+      } = await import('@skyway-sdk/room')
 
       // SkyWayトークンの確認
       const token = new SkyWayAuthToken({
@@ -109,6 +117,38 @@ export const useRoomView = () => {
       await member.publish(stream)
       setDataStream(stream)
 
+        // データストリームの受信処理を設定（型アサーションで回避）
+        ; (stream as any).onData?.add((data: any) => {
+          try {
+            console.log('Raw data stream data:', data)
+            const messageData = data.data || data
+            const message = JSON.parse(messageData)
+            console.log('Received data stream message:', message)
+            handleDataMessage(message)
+          } catch (err) {
+            console.error('データストリームメッセージの解析エラー:', err, 'Raw data:', data)
+          }
+        })
+
+      // 既存のデータストリームを購読
+      const existingStreams = newRoom.publications.filter(pub => pub.contentType === 'data')
+      for (const publication of existingStreams) {
+        if (publication.publisher.id !== member.id) {
+          const subscription = await member.subscribe(publication)
+            ; (subscription.stream as any).onData?.add((data: any) => {
+              try {
+                console.log('Raw subscription data:', data)
+                const messageData = data.data || data
+                const message = JSON.parse(messageData)
+                console.log('Received subscription message:', message)
+                handleDataMessage(message)
+              } catch (err) {
+                console.error('購読メッセージの解析エラー:', err, 'Raw data:', data)
+              }
+            })
+        }
+      }
+
       // 参加者リストの初期化
       const initialParticipants: Participant[] = [{
         id: member.id,
@@ -118,50 +158,56 @@ export const useRoomView = () => {
       }]
 
       setParticipants(initialParticipants)
-      setRoom(newRoom)
       setLocalMember(member)
 
       // 他の参加者の参加を監視
-      if (newRoom.on) {
-        newRoom.on('memberJoined', (joinedMember: any) => {
-          try {
-            const metadata = JSON.parse(joinedMember.metadata || '{}')
-            const newParticipant: Participant = {
-              id: joinedMember.id,
-              nickname: metadata.nickname || 'Unknown',
-              isFacilitator: metadata.isFacilitator || false,
-              hasVoted: false,
-            }
-            setParticipants(prev => [...prev, newParticipant])
-            console.log('新しい参加者が参加:', newParticipant.nickname)
-          } catch (err) {
-            console.error('参加者情報の解析エラー:', err)
+      newRoom.onMemberJoined.add(async (joinedMember: any) => {
+        try {
+          const metadata = JSON.parse(joinedMember.metadata || '{}')
+          const newParticipant: Participant = {
+            id: joinedMember.id,
+            nickname: metadata.nickname || 'Unknown',
+            isFacilitator: metadata.isFacilitator || false,
+            hasVoted: false,
           }
-        })
+          setParticipants(prev => [...prev, newParticipant])
+          console.log('新しい参加者が参加:', newParticipant.nickname)
 
-        // 参加者の退出を監視
-        newRoom.on('memberLeft', (leftMember: any) => {
-          setParticipants(prev => {
-            const updated = prev.filter(p => p.id !== leftMember.id)
-            console.log('参加者が退出:', leftMember.name)
+          // 新しい参加者のデータストリームを購読
+          const newMemberStreams = newRoom.publications.filter(pub =>
+            pub.contentType === 'data' && pub.publisher.id === joinedMember.id
+          )
+          for (const publication of newMemberStreams) {
+            const subscription = await localMember.subscribe(publication)
+              ; (subscription.stream as any).onData?.add((data: any) => {
+                try {
+                  console.log('Raw new member data:', data)
+                  const messageData = data.data || data
+                  const message = JSON.parse(messageData)
+                  console.log('Received new member message:', message)
+                  handleDataMessage(message)
+                } catch (err) {
+                  console.error('新メンバーメッセージの解析エラー:', err, 'Raw data:', data)
+                }
+              })
+          }
+        } catch (err) {
+          console.error('参加者情報の解析エラー:', err)
+        }
+      })
 
-            return updated
-          })
-        })
+      // 参加者の退出を監視
+      newRoom.onMemberLeft.add((leftMember: any) => {
+        setParticipants(prev => {
+          const updated = prev.filter(p => p.id !== leftMember.id)
+          console.log('参加者が退出:', leftMember.name)
 
-        // エラーハンドリング
-        newRoom.on('error', (error: Error) => {
-          console.error('SkyWayルームエラー:', error)
-          setError('ルームでエラーが発生しました')
+          return updated
         })
-      }
+      })
 
-      if (member.on) {
-        member.on('error', (error: Error) => {
-          console.error('SkyWayメンバーエラー:', error)
-          setError('接続でエラーが発生しました')
-        })
-      }
+      // エラーハンドリング（try-catchで対応）
+      console.log('SkyWay接続成功')
 
       console.log('SkyWay接続成功')
 
@@ -171,7 +217,7 @@ export const useRoomView = () => {
     } finally {
       setIsConnecting(false)
     }
-  }, [roomId, nickname, isFacilitatorBool])
+  }, [roomId, nickname, isFacilitatorBool, isClient])
 
   // データメッセージの処理
   const handleDataMessage = useCallback((message: {
@@ -233,11 +279,6 @@ export const useRoomView = () => {
     try {
       dataStream.write(JSON.stringify(message))
       console.log('Message sent:', message)
-
-      // ローカルでもメッセージを処理（デバッグ用）
-      setTimeout(() => {
-        handleDataMessage(message)
-      }, 100)
     } catch (err) {
       console.error('メッセージ送信エラー:', err)
     }

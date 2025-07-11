@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useRoomView, POINT_CARDS } from './hooks'
 
 export function RoomView() {
@@ -22,6 +22,100 @@ export function RoomView() {
     revealCards,
     nextTask,
   } = useRoomView()
+
+  const [inputNickname, setInputNickname] = useState('')
+  const [isJoining, setIsJoining] = useState(false)
+
+  // 名前入力画面
+  if (!nickname) {
+    const handleJoinRoom = async () => {
+      if (!inputNickname.trim()) {
+        alert('ニックネームを入力してください')
+
+        return
+      }
+
+      setIsJoining(true)
+      try {
+        // URLパラメータを更新してルームに参加
+        const url = new URL(window.location.href)
+        url.searchParams.set('nickname', inputNickname.trim())
+        url.searchParams.set('isFacilitator', 'false')
+        window.history.replaceState({}, '', url.toString())
+
+        // ページをリロードして新しいパラメータで初期化
+        window.location.reload()
+      } catch (err) {
+        console.error('ルーム参加エラー:', err)
+        alert('ルームへの参加に失敗しました')
+        setIsJoining(false)
+      }
+    }
+
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+          <div className="mb-6 text-center">
+            <h1 className="mb-2 text-2xl font-bold text-gray-900">プランニングポーカー</h1>
+            <p className="text-gray-600">ルームに参加するにはニックネームを入力してください</p>
+          </div>
+
+          <div className="mb-4">
+            <label htmlFor="nickname" className="mb-2 block text-sm font-medium text-gray-700">
+              ニックネーム
+            </label>
+            <input
+              id="nickname"
+              type="text"
+              value={inputNickname}
+              onChange={(e) => setInputNickname(e.target.value)}
+              placeholder="あなたの名前を入力"
+              className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+              onKeyPress={(e) => e.key === 'Enter' && handleJoinRoom()}
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => window.location.href = '/'}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+            >
+              戻る
+            </button>
+            <button
+              onClick={handleJoinRoom}
+              disabled={!inputNickname.trim() || isJoining}
+              className={`flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors ${inputNickname.trim() && !isJoining
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'cursor-not-allowed bg-gray-300 text-gray-500'
+                }`}
+            >
+              {isJoining ? '参加中...' : '参加する'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // URL共有機能
+  const shareRoomUrl = async () => {
+    const roomUrl = `${window.location.origin}/room/${roomId}`
+    try {
+      await navigator.clipboard.writeText(roomUrl)
+      alert('ルームURLをクリップボードにコピーしました！')
+    } catch (err) {
+      console.error('クリップボードへのコピーに失敗しました:', err)
+      // フォールバック: テキストエリアを使用
+      const textArea = document.createElement('textarea')
+      textArea.value = roomUrl
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      alert('ルームURLをクリップボードにコピーしました！')
+    }
+  }
 
   if (isConnecting) {
     return (
@@ -69,8 +163,19 @@ export function RoomView() {
                 {isFacilitator && <span className="ml-2 rounded bg-blue-100 px-2 py-1 text-xs text-blue-800">ファシリテーター</span>}
               </p>
             </div>
-            <div className="text-right">
+            <div className="flex items-center gap-4">
               <p className="text-sm text-gray-600">参加者: {participants.length}人</p>
+              {isFacilitator && (
+                <button
+                  onClick={shareRoomUrl}
+                  className="flex items-center gap-2 rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700"
+                >
+                  <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  </svg>
+                  URL共有
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -85,8 +190,8 @@ export function RoomView() {
               <div
                 key={participant.id}
                 className={`rounded-lg border p-3 ${participant.hasVoted
-                    ? 'border-green-200 bg-green-50'
-                    : 'border-gray-200 bg-gray-50'
+                  ? 'border-green-200 bg-green-50'
+                  : 'border-gray-200 bg-gray-50'
                   }`}
               >
                 <div className="flex items-center justify-between">
@@ -125,8 +230,8 @@ export function RoomView() {
                 onClick={sendTask}
                 disabled={!taskText.trim()}
                 className={`rounded-lg px-6 py-2 font-medium transition-colors ${taskText.trim()
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'cursor-not-allowed bg-gray-300 text-gray-500'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'cursor-not-allowed bg-gray-300 text-gray-500'
                   }`}
               >
                 送信
@@ -198,8 +303,8 @@ export function RoomView() {
                   key={card}
                   onClick={() => sendVote(card)}
                   className={`rounded-lg border-2 p-4 text-lg font-bold transition-all ${selectedCard === card
-                      ? 'border-blue-500 bg-blue-50 text-blue-600'
-                      : 'border-gray-300 hover:border-blue-300 hover:bg-gray-50'
+                    ? 'border-blue-500 bg-blue-50 text-blue-600'
+                    : 'border-gray-300 hover:border-blue-300 hover:bg-gray-50'
                     }`}
                 >
                   {card}
