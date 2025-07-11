@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "lint:fix": "next lint --fix",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "chromatic": "npx chromatic --project-token=$CHROMATIC_PROJECT_TOKEN",
@@ -19,6 +20,8 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
+    "@skyway-sdk/core": "^1.13.2",
+    "@skyway-sdk/room": "^1.13.2",
     "@storybook/jest": "^0.2.3",
     "@storybook/testing-library": "^0.2.2",
     "@vitejs/plugin-react": "^4.2.1",
