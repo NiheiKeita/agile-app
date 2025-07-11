@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/router'
+import {
+  nowInSec,
+  SkyWayAuthToken,
+  uuidV4,
+  SkyWayRoom,
+  SkyWayContext,
+  SkyWayStreamFactory
+} from '@skyway-sdk/room'
 
 export interface Participant {
   id: string
@@ -24,8 +32,9 @@ export const useRoomView = () => {
   const router = useRouter()
   const { roomId, nickname, isFacilitator } = router.query
 
-
   const [room, setRoom] = useState<any>(null)
+  const [localMember, setLocalMember] = useState<any>(null)
+  const [dataStream, setDataStream] = useState<any>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [currentTask, setCurrentTask] = useState<Task | null>(null)
   const [selectedCard, setSelectedCard] = useState<string>('')
@@ -46,28 +55,59 @@ export const useRoomView = () => {
     try {
       console.log('Connecting to SkyWay room:', roomId, 'as', nickname)
 
-      // SkyWayの初期化
-      const { SkyWayRoom, SkyWayContext } = await import('@skyway-sdk/room')
+      // SkyWayトークンの確認
+      const token = new SkyWayAuthToken({
+        jti: uuidV4(),
+        iat: nowInSec(),
+        exp: nowInSec() + 60 * 60 * 24,
+        version: 3,
+        scope: {
+          appId: process.env.NEXT_PUBLIC_SKYWAY_APP_ID ?? "",
+          rooms: [
+            {
+              name: "*",
+              methods: ["create", "close", "updateMetadata"],
+              member: {
+                name: "*",
+                methods: ["publish", "subscribe", "updateMetadata"],
+              },
+            },
+          ],
+        },
+      }).encode(process.env.NEXT_PUBLIC_SKYWAY_TOKEN ?? "")
 
-      // SkyWayコンテキストの作成
-      const context = await SkyWayContext.Create(
-        process.env.NEXT_PUBLIC_SKYWAY_TOKEN || ''
-      )
+      // 開発用モックモード（トークンが設定されていない場合、または無効なトークンの場合）
+      if (!token) {
+        console.log('SkyWayトークンが設定されていない')
+
+        return
+      }
+
+      // SkyWayの初期化
+      const context = await SkyWayContext.Create(token)
 
       // ルームの作成または参加
-      const newRoom = await SkyWayRoom.Create(context, {
-        type: 'p2p',
+      const newRoom = await SkyWayRoom.FindOrCreate(context, {
+        type: "p2p",
         name: roomId as string,
-      }) as any
+      })
+
+      // メンバー名を英数字のみに制限（SkyWayの要件）
+      const memberName = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
       // ルームメンバーとして参加
       const member = await newRoom.join({
-        name: nickname as string,
+        name: memberName,
         metadata: JSON.stringify({
           nickname: nickname,
           isFacilitator: isFacilitatorBool,
         }),
-      }) as any
+      })
+
+      // データストリームを作成
+      const stream = await SkyWayStreamFactory.createDataStream()
+      await member.publish(stream)
+      setDataStream(stream)
 
       // 参加者リストの初期化
       const initialParticipants: Participant[] = [{
@@ -79,54 +119,49 @@ export const useRoomView = () => {
 
       setParticipants(initialParticipants)
       setRoom(newRoom)
-
-      // データメッセージ受信の設定
-      member.on('data', (data: any) => {
-        try {
-          const message = JSON.parse(data.data)
-          handleDataMessage(message)
-        } catch (err) {
-          console.error('データメッセージの解析エラー:', err)
-        }
-      })
+      setLocalMember(member)
 
       // 他の参加者の参加を監視
-      newRoom.on('memberJoined', (joinedMember: any) => {
-        try {
-          const metadata = JSON.parse(joinedMember.metadata || '{}')
-          const newParticipant: Participant = {
-            id: joinedMember.id,
-            nickname: metadata.nickname || 'Unknown',
-            isFacilitator: metadata.isFacilitator || false,
-            hasVoted: false,
+      if (newRoom.on) {
+        newRoom.on('memberJoined', (joinedMember: any) => {
+          try {
+            const metadata = JSON.parse(joinedMember.metadata || '{}')
+            const newParticipant: Participant = {
+              id: joinedMember.id,
+              nickname: metadata.nickname || 'Unknown',
+              isFacilitator: metadata.isFacilitator || false,
+              hasVoted: false,
+            }
+            setParticipants(prev => [...prev, newParticipant])
+            console.log('新しい参加者が参加:', newParticipant.nickname)
+          } catch (err) {
+            console.error('参加者情報の解析エラー:', err)
           }
-          setParticipants(prev => [...prev, newParticipant])
-          console.log('新しい参加者が参加:', newParticipant.nickname)
-        } catch (err) {
-          console.error('参加者情報の解析エラー:', err)
-        }
-      })
-
-      // 参加者の退出を監視
-      newRoom.on('memberLeft', (leftMember: any) => {
-        setParticipants(prev => {
-          const updated = prev.filter(p => p.id !== leftMember.id)
-          console.log('参加者が退出:', leftMember.name)
-
-          return updated
         })
-      })
 
-      // エラーハンドリング
-      newRoom.on('error', (error: any) => {
-        console.error('SkyWayルームエラー:', error)
-        setError('ルームでエラーが発生しました')
-      })
+        // 参加者の退出を監視
+        newRoom.on('memberLeft', (leftMember: any) => {
+          setParticipants(prev => {
+            const updated = prev.filter(p => p.id !== leftMember.id)
+            console.log('参加者が退出:', leftMember.name)
 
-      member.on('error', (error: any) => {
-        console.error('SkyWayメンバーエラー:', error)
-        setError('接続でエラーが発生しました')
-      })
+            return updated
+          })
+        })
+
+        // エラーハンドリング
+        newRoom.on('error', (error: Error) => {
+          console.error('SkyWayルームエラー:', error)
+          setError('ルームでエラーが発生しました')
+        })
+      }
+
+      if (member.on) {
+        member.on('error', (error: Error) => {
+          console.error('SkyWayメンバーエラー:', error)
+          setError('接続でエラーが発生しました')
+        })
+      }
 
       console.log('SkyWay接続成功')
 
@@ -139,31 +174,40 @@ export const useRoomView = () => {
   }, [roomId, nickname, isFacilitatorBool])
 
   // データメッセージの処理
-  const handleDataMessage = useCallback((message: any) => {
+  const handleDataMessage = useCallback((message: {
+    type: string
+    userId?: string
+    point?: string
+    taskText?: string
+  }) => {
     console.log('Received message:', message)
 
     switch (message.type) {
       case 'vote':
-        setParticipants(prev =>
-          prev.map(p =>
-            p.id === message.userId
-              ? { ...p, hasVoted: true, vote: message.point }
-              : p
+        if (message.userId && message.point) {
+          setParticipants(prev =>
+            prev.map(p =>
+              p.id === message.userId
+                ? { ...p, hasVoted: true, vote: message.point }
+                : p
+            )
           )
-        )
+        }
         break
 
       case 'task':
-        setCurrentTask({
-          id: Date.now().toString(),
-          text: message.taskText,
-          isRevealed: false,
-          votes: {},
-          comments: [],
-        })
-        // 投票状態をリセット
-        setParticipants(prev => prev.map(p => ({ ...p, hasVoted: false, vote: undefined })))
-        setSelectedCard('')
+        if (message.taskText) {
+          setCurrentTask({
+            id: Date.now().toString(),
+            text: message.taskText,
+            isRevealed: false,
+            votes: {},
+            comments: [],
+          })
+          // 投票状態をリセット
+          setParticipants(prev => prev.map(p => ({ ...p, hasVoted: false, vote: undefined })))
+          setSelectedCard('')
+        }
         break
 
       case 'reveal':
@@ -178,38 +222,59 @@ export const useRoomView = () => {
     }
   }, [])
 
+  // メッセージを送信する共通関数
+  const sendMessage = useCallback((message: any) => {
+    if (!dataStream) {
+      console.error('データストリームが利用できません')
+
+      return
+    }
+
+    try {
+      dataStream.write(JSON.stringify(message))
+      console.log('Message sent:', message)
+
+      // ローカルでもメッセージを処理（デバッグ用）
+      setTimeout(() => {
+        handleDataMessage(message)
+      }, 100)
+    } catch (err) {
+      console.error('メッセージ送信エラー:', err)
+    }
+  }, [dataStream, handleDataMessage])
+
   // 投票を送信
   const sendVote = useCallback(async (point: string) => {
-    if (!room) return
+    if (!localMember) return
 
     try {
       console.log('Sending vote:', point)
       const message = {
         type: 'vote',
-        userId: 'local-user', // 実際のSkyWayではmember.idを使用
+        userId: localMember.id,
         point,
       }
 
       // SkyWayでメッセージを送信
-      await (room as any).localMember?.publish(JSON.stringify(message))
-      setSelectedCard(point)
+      sendMessage(message)
 
       // ローカル参加者の投票状態を更新
       setParticipants(prev =>
         prev.map(p =>
-          p.id === 'local-user'
+          p.id === localMember.id
             ? { ...p, hasVoted: true, vote: point }
             : p
         )
       )
+      setSelectedCard(point)
     } catch (err) {
       console.error('投票送信エラー:', err)
     }
-  }, [room])
+  }, [localMember, sendMessage])
 
   // タスクを送信（ファシリテーターのみ）
   const sendTask = useCallback(async () => {
-    if (!room || !taskText.trim() || !isFacilitatorBool) return
+    if (!taskText.trim() || !isFacilitatorBool) return
 
     try {
       console.log('Sending task:', taskText)
@@ -219,38 +284,42 @@ export const useRoomView = () => {
       }
 
       // SkyWayでメッセージを送信
-      await (room as any).localMember?.publish(JSON.stringify(message))
+      sendMessage(message)
       setTaskText('')
     } catch (err) {
       console.error('タスク送信エラー:', err)
     }
-  }, [room, taskText, isFacilitatorBool])
+  }, [taskText, isFacilitatorBool, sendMessage])
 
   // カードを公開（ファシリテーターのみ）
   const revealCards = useCallback(async () => {
-    if (!room || !isFacilitatorBool) return
+    if (!isFacilitatorBool) return
 
     try {
       console.log('Revealing cards')
       const message = { type: 'reveal' }
-      await (room as any).localMember?.publish(JSON.stringify(message))
+
+      // SkyWayでメッセージを送信
+      sendMessage(message)
     } catch (err) {
       console.error('カード公開エラー:', err)
     }
-  }, [room, isFacilitatorBool])
+  }, [isFacilitatorBool, sendMessage])
 
   // 次のタスクへ（ファシリテーターのみ）
   const nextTask = useCallback(async () => {
-    if (!room || !isFacilitatorBool) return
+    if (!isFacilitatorBool) return
 
     try {
       console.log('Moving to next task')
       const message = { type: 'nextTask' }
-      await (room as any).localMember?.publish(JSON.stringify(message))
+
+      // SkyWayでメッセージを送信
+      sendMessage(message)
     } catch (err) {
       console.error('次のタスクエラー:', err)
     }
-  }, [room, isFacilitatorBool])
+  }, [isFacilitatorBool, sendMessage])
 
   // 平均ポイントの計算
   const calculateAverage = useCallback(() => {
