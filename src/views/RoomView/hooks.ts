@@ -109,7 +109,12 @@ export const useRoomView = () => {
         nickname: nickname,
         isFacilitator: isFacilitatorBool,
       }
-      console.log('Joining with metadata:', memberMetadata)
+      console.log('=== 参加者のメタデータ送信処理 ===')
+      console.log('作成したメタデータ:', memberMetadata)
+      console.log('メタデータをJSON文字列化:', JSON.stringify(memberMetadata))
+      console.log('参加者名:', memberName)
+      console.log('ニックネーム:', nickname)
+      console.log('ファシリテーター:', isFacilitatorBool)
 
       // ルームメンバーとして参加
       const member = await newRoom.join({
@@ -117,7 +122,25 @@ export const useRoomView = () => {
         metadata: JSON.stringify(memberMetadata),
       })
 
-      console.log('Joined as member:', member.id, 'with metadata:', member.metadata)
+      console.log('=== ルーム参加完了 ===')
+      console.log('メンバーID:', member.id)
+      console.log('実際に送信されたメタデータ:', member.metadata)
+      console.log('メタデータの型:', typeof member.metadata)
+      console.log('メタデータの長さ:', member.metadata ? member.metadata.length : 0)
+      console.log('メタデータが空かどうか:', !member.metadata)
+      console.log('メタデータがnullかどうか:', member.metadata === null)
+      console.log('メタデータがundefinedかどうか:', member.metadata === undefined)
+
+      // メタデータを再パースして内容を確認
+      if (member.metadata) {
+        try {
+          const parsedMetadata = JSON.parse(member.metadata)
+          console.log('再パースしたメタデータ:', parsedMetadata)
+          console.log('再パースしたメタデータのキー:', Object.keys(parsedMetadata))
+        } catch (err) {
+          console.error('メタデータの再パースエラー:', err)
+        }
+      }
 
       // データストリームを作成
       const stream = await SkyWayStreamFactory.createDataStream()
@@ -149,21 +172,39 @@ export const useRoomView = () => {
         existingMembers = (newRoom as any).members.filter((m: any) => m.id !== member.id)
       }
 
-      console.log('Existing members:', existingMembers.length)
+      console.log('=== 既存参加者のメタデータ受信処理 ===')
+      console.log('既存参加者数:', existingMembers.length)
       for (const existingMember of existingMembers) {
         try {
-          console.log('Existing member object:', existingMember)
-          console.log('Existing member id:', existingMember.id)
-          console.log('Existing member metadata:', existingMember.metadata)
+          console.log('--- 既存参加者の詳細 ---')
+          console.log('参加者オブジェクト:', existingMember)
+          console.log('参加者ID:', existingMember.id)
+          console.log('受信したメタデータ:', existingMember.metadata)
+          console.log('メタデータの型:', typeof existingMember.metadata)
+          console.log('メタデータの長さ:', existingMember.metadata ? existingMember.metadata.length : 0)
+
+          console.log('=== メタデータの詳細解析 ===')
+          console.log('生のメタデータ文字列:', existingMember.metadata)
+          console.log('メタデータが空かどうか:', !existingMember.metadata)
+          console.log('メタデータがnullかどうか:', existingMember.metadata === null)
+          console.log('メタデータがundefinedかどうか:', existingMember.metadata === undefined)
+
           const metadata = JSON.parse(existingMember.metadata || '{}')
-          console.log('Parsed existing member metadata:', metadata)
+          console.log('パース後のメタデータ:', metadata)
+          console.log('メタデータのuserId:', metadata.userId)
+          console.log('メタデータのnickname:', metadata.nickname)
+          console.log('メタデータのisFacilitator:', metadata.isFacilitator)
+          console.log('メタデータのキー一覧:', Object.keys(metadata))
+
           const existingParticipant: Participant = {
             id: metadata.userId || existingMember.id || `member-${Date.now()}`,
             nickname: metadata.nickname || 'Unknown',
             isFacilitator: metadata.isFacilitator || false,
             hasVoted: false,
           }
-          console.log('Created existing participant:', existingParticipant)
+          console.log('作成された参加者オブジェクト:', existingParticipant)
+          console.log('最終的な参加者ID:', existingParticipant.id)
+          console.log('最終的なニックネーム:', existingParticipant.nickname)
           setParticipants(prev => [...prev, existingParticipant])
         } catch (err) {
           console.error('既存参加者情報の解析エラー:', err)
@@ -206,24 +247,45 @@ export const useRoomView = () => {
       // 他の参加者の参加を監視
       newRoom.onMemberJoined.add(async (joinedMember: any) => {
         try {
-          console.log('Member joined object:', joinedMember)
-          console.log('Member joined id:', joinedMember.id)
-          console.log('Member joined metadata:', joinedMember.metadata)
-          const metadata = JSON.parse(joinedMember.metadata || '{}')
-          console.log('Parsed metadata:', metadata)
+          console.log('=== 新しい参加者のメタデータ受信処理 ===')
+          console.log('参加者オブジェクト:', joinedMember)
+
+          // SkyWayの最新APIでは、メンバー情報がネストされている可能性がある
+          const actualMember = joinedMember.member || joinedMember
+          console.log('実際のメンバーオブジェクト:', actualMember)
+          console.log('参加者ID:', actualMember.id)
+          console.log('受信したメタデータ:', actualMember.metadata)
+          console.log('メタデータの型:', typeof actualMember.metadata)
+          console.log('メタデータの長さ:', actualMember.metadata ? actualMember.metadata.length : 0)
+
+          console.log('=== メタデータの詳細解析 ===')
+          console.log('生のメタデータ文字列:', actualMember.metadata)
+          console.log('メタデータが空かどうか:', !actualMember.metadata)
+          console.log('メタデータがnullかどうか:', actualMember.metadata === null)
+          console.log('メタデータがundefinedかどうか:', actualMember.metadata === undefined)
+
+          const metadata = JSON.parse(actualMember.metadata || '{}')
+          console.log('パース後のメタデータ:', metadata)
+          console.log('メタデータのuserId:', metadata.userId)
+          console.log('メタデータのnickname:', metadata.nickname)
+          console.log('メタデータのisFacilitator:', metadata.isFacilitator)
+          console.log('メタデータのキー一覧:', Object.keys(metadata))
+
           const newParticipant: Participant = {
-            id: metadata.userId || joinedMember.id || `member-${Date.now()}`,
+            id: metadata.userId || actualMember.id || `member-${Date.now()}`,
             nickname: metadata.nickname || 'Unknown',
             isFacilitator: metadata.isFacilitator || false,
             hasVoted: false,
           }
-          console.log('Created participant:', newParticipant)
+          console.log('作成された参加者オブジェクト:', newParticipant)
+          console.log('最終的な参加者ID:', newParticipant.id)
+          console.log('最終的なニックネーム:', newParticipant.nickname)
           setParticipants(prev => [...prev, newParticipant])
           console.log('新しい参加者が参加:', newParticipant.nickname)
 
           // 新しい参加者のデータストリームを購読
           const newMemberStreams = newRoom.publications.filter(pub =>
-            pub.contentType === 'data' && pub.publisher.id === joinedMember.id
+            pub.contentType === 'data' && pub.publisher.id === actualMember.id
           )
           console.log('New member streams:', newMemberStreams.length)
           for (const publication of newMemberStreams) {
