@@ -1,0 +1,134 @@
+name: deploy to stg-xserver
+
+# on: ["pull_request"]
+on: 
+  push:
+    tags:
+      - 'stg.v.*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Create .env file, firebase-messaging-sw.js and firebase_env.json
+        run: |
+          # .envファイルを作成
+          cat > .env << EOF
+          # Firebase Configuration
+          NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
+          NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=${{ secrets.FIREBASE_MEASUREMENT_ID }}
+          NEXT_PUBLIC_FIREBASE_VAPID_KEY=${{ secrets.FIREBASE_VAPID_KEY }}
+          NEXT_PUBLIC_API_URL=https://api.qboad.com
+          EOF
+          
+          # firebase_env.jsonファイルを作成
+          cat > firebase_env.json << EOF
+          {
+            "type": "service_account",
+            "project_id": "${{ secrets.FIREBASE_PROJECT_ID }}",
+            "private_key_id": "${{ secrets.FIREBASE_PRIVATE_KEY_ID }}",
+            "private_key": "${{ secrets.FIREBASE_PRIVATE_KEY }}",
+            "client_email": "${{ secrets.FIREBASE_CLIENT_EMAIL }}",
+            "client_id": "${{ secrets.FIREBASE_CLIENT_ID }}",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+            "client_x509_cert_url": "${{ secrets.FIREBASE_CLIENT_X509_CERT_URL }}"
+          }
+          EOF
+          
+          # publicディレクトリを作成
+          mkdir -p public
+          
+          # firebase-messaging-sw.jsファイルを作成
+          cat > public/firebase-messaging-sw.js << EOF
+          // Firebase Cloud Messaging Service Worker
+          importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+          importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+          
+          // Firebase設定
+          const firebaseConfig = {
+            apiKey: "${{ secrets.FIREBASE_API_KEY }}",
+            authDomain: "${{ secrets.FIREBASE_AUTH_DOMAIN }}",
+            projectId: "${{ secrets.FIREBASE_PROJECT_ID }}",
+            storageBucket: "${{ secrets.FIREBASE_STORAGE_BUCKET }}",
+            messagingSenderId: "${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}",
+            appId: "${{ secrets.FIREBASE_APP_ID }}"
+          };
+          
+          // Firebase初期化
+          firebase.initializeApp(firebaseConfig);
+          
+          // Messagingインスタンス取得
+          const messaging = firebase.messaging();
+          
+          // バックグラウンドメッセージハンドラー
+          messaging.onBackgroundMessage((payload) => {
+            console.log('[firebase-messaging-sw.js] Received background message');
+          
+            const notificationTitle = payload.notification?.title || '新しいメッセージ';
+            const notificationOptions = {
+              body: payload.notification?.body || '',
+              icon: '/favicon.ico',
+              badge: '/favicon.ico',
+              data: payload.data || {}
+            };
+          
+            return self.registration.showNotification(notificationTitle, notificationOptions);
+          });
+          EOF
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: FTP-Deploy-Action
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.STG_FTP_SERVER }}
+          username: ${{ secrets.STG_FTP_USERNAME }}
+          password: ${{ secrets.STG_FTP_PASSWORD }}
+          local-dir: ./out/
+          server-dir: ./
+          exclude: |
+            **/node_modules/**
+            **/src/**
+            **/tests/**
+            **/tests-examples/**
+            **/.github/**
+            **/.git/**
+            **/.next/**
+            .env.local
+            .env.production
+            .env.development
+            *.log
+            *.cache
+            package-lock.json
+            package.json
+            tsconfig.json
+            tailwind.config.ts
+            postcss.config.js
+            prettier.config.js
+            jest.config.js
+            playwright.config.ts
+            sonar-project.properties
+            README.md
+            next.config.mjs
+            firebase_env.json
+            ecosystem.config.js
+            deploy.sh
+            xserver.config.js
