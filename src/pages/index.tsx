@@ -1,5 +1,6 @@
-import { TopView } from '../views/TopView'
+import { HomeView } from '../views/HomeView'
 
 export default function HomePage() {
-  return <TopView />
+
+  return <HomeView />
 } 

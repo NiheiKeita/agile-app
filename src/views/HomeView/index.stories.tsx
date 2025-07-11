@@ -1,8 +1,8 @@
 import { Meta, StoryObj } from '@storybook/react'
-import { TopView } from '.'
+import { HomeView } from '.'
 
-const meta: Meta<typeof TopView> = {
-  component: TopView,
+const meta: Meta<typeof HomeView> = {
+  component: HomeView,
   tags: ['autodocs'],
   parameters: {
     layout: 'fullscreen',
@@ -14,4 +14,4 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
   args: {},
-}
+} 
