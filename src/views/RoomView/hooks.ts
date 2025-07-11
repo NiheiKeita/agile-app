@@ -132,8 +132,10 @@ export const useRoomView = () => {
 
       // 既存のデータストリームを購読
       const existingStreams = newRoom.publications.filter(pub => pub.contentType === 'data')
+      console.log('Existing streams:', existingStreams.length)
       for (const publication of existingStreams) {
         if (publication.publisher.id !== member.id) {
+          console.log('Subscribing to stream from:', publication.publisher.id)
           const subscription = await member.subscribe(publication)
             ; (subscription.stream as any).onData?.add((data: any) => {
               try {
@@ -177,8 +179,10 @@ export const useRoomView = () => {
           const newMemberStreams = newRoom.publications.filter(pub =>
             pub.contentType === 'data' && pub.publisher.id === joinedMember.id
           )
+          console.log('New member streams:', newMemberStreams.length)
           for (const publication of newMemberStreams) {
-            const subscription = await localMember.subscribe(publication)
+            console.log('Subscribing to new member stream from:', publication.publisher.id)
+            const subscription = await member.subscribe(publication)
               ; (subscription.stream as any).onData?.add((data: any) => {
                 try {
                   console.log('Raw new member data:', data)
@@ -193,6 +197,26 @@ export const useRoomView = () => {
           }
         } catch (err) {
           console.error('参加者情報の解析エラー:', err)
+        }
+      })
+
+      // データストリームの公開を監視
+      newRoom.onStreamPublished.add(async (event: any) => {
+        console.log('Stream published:', event.publication.publisher.id, event.publication.contentType)
+        if (event.publication.contentType === 'data' && event.publication.publisher.id !== member.id) {
+          console.log('Subscribing to newly published stream from:', event.publication.publisher.id)
+          const subscription = await member.subscribe(event.publication)
+            ; (subscription.stream as any).onData?.add((data: any) => {
+              try {
+                console.log('Raw newly published stream data:', data)
+                const messageData = data.data || data
+                const message = JSON.parse(messageData)
+                console.log('Received newly published stream message:', message)
+                handleDataMessage(message)
+              } catch (err) {
+                console.error('新公開ストリームメッセージの解析エラー:', err, 'Raw data:', data)
+              }
+            })
         }
       })
 
@@ -231,13 +255,17 @@ export const useRoomView = () => {
     switch (message.type) {
       case 'vote':
         if (message.userId && message.point) {
-          setParticipants(prev =>
-            prev.map(p =>
+          console.log('Processing vote:', message.userId, message.point)
+          setParticipants(prev => {
+            const updated = prev.map(p =>
               p.id === message.userId
                 ? { ...p, hasVoted: true, vote: message.point }
                 : p
             )
-          )
+            console.log('Updated participants:', updated)
+
+            return updated
+          })
         }
         break
 
@@ -299,14 +327,7 @@ export const useRoomView = () => {
       // SkyWayでメッセージを送信
       sendMessage(message)
 
-      // ローカル参加者の投票状態を更新
-      setParticipants(prev =>
-        prev.map(p =>
-          p.id === localMember.id
-            ? { ...p, hasVoted: true, vote: point }
-            : p
-        )
-      )
+      // 選択したカードを設定（UI表示用）
       setSelectedCard(point)
     } catch (err) {
       console.error('投票送信エラー:', err)
@@ -326,6 +347,19 @@ export const useRoomView = () => {
 
       // SkyWayでメッセージを送信
       sendMessage(message)
+
+      // ファシリテーター側でもローカルでタスクを設定
+      setCurrentTask({
+        id: Date.now().toString(),
+        text: taskText.trim(),
+        isRevealed: false,
+        votes: {},
+        comments: [],
+      })
+      // 投票状態をリセット
+      setParticipants(prev => prev.map(p => ({ ...p, hasVoted: false, vote: undefined })))
+      setSelectedCard('')
+
       setTaskText('')
     } catch (err) {
       console.error('タスク送信エラー:', err)
@@ -342,6 +376,9 @@ export const useRoomView = () => {
 
       // SkyWayでメッセージを送信
       sendMessage(message)
+
+      // ファシリテーター側でもローカルでカードを公開
+      setCurrentTask(prev => prev ? { ...prev, isRevealed: true } : null)
     } catch (err) {
       console.error('カード公開エラー:', err)
     }
@@ -357,6 +394,11 @@ export const useRoomView = () => {
 
       // SkyWayでメッセージを送信
       sendMessage(message)
+
+      // ファシリテーター側でもローカルで次のタスクに移動
+      setCurrentTask(null)
+      setSelectedCard('')
+      setParticipants(prev => prev.map(p => ({ ...p, hasVoted: false, vote: undefined })))
     } catch (err) {
       console.error('次のタスクエラー:', err)
     }
