@@ -1,10 +1,10 @@
 name: deploy to stg-xserver
 
-# on: ["pull_request"]
-on: 
-  push:
-    tags:
-      - 'stg.v.*'
+on: ["pull_request"]
+# on: 
+#   push:
+#     tags:
+#       - 'stg.v.*'
 
 jobs:
   deploy:
@@ -19,6 +19,14 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Create .env file from secrets
+        run: |
+          cat > .env << EOF
+          NEXT_PUBLIC_SKYWAY_TOKEN=${{ secrets.NEXT_PUBLIC_SKYWAY_TOKEN }}
+          EOF
+        env:
+          NEXT_PUBLIC_SKYWAY_TOKEN: ${{ secrets.NEXT_PUBLIC_SKYWAY_TOKEN }}
 
       - name: Build Next.js
         run: npm run build
@@ -42,6 +50,7 @@ jobs:
             .env.local
             .env.production
             .env.development
+            .env.example
             *.log
             *.cache
             package-lock.json
