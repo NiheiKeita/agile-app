@@ -374,7 +374,7 @@ export function RoomView() {
         )}
 
         {/* コメント入力 */}
-        <div className="rounded-lg bg-white p-4 shadow-sm">
+        {/* <div className="rounded-lg bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-lg font-semibold text-gray-900">コメント</h2>
           <textarea
             value={comment}
@@ -383,7 +383,7 @@ export function RoomView() {
             className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 focus:border-transparent focus:ring-2 focus:ring-blue-500"
             rows={3}
           />
-        </div>
+        </div> */}
       </div>
     </div>
   )
