@@ -86,8 +86,8 @@ export function RoomView() {
               onClick={handleJoinRoom}
               disabled={!inputNickname.trim() || isJoining}
               className={`flex-1 rounded-lg px-4 py-2 font-medium text-white transition-colors ${inputNickname.trim() && !isJoining
-                  ? 'bg-blue-600 hover:bg-blue-700'
-                  : 'cursor-not-allowed bg-gray-300 text-gray-500'
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : 'cursor-not-allowed bg-gray-300 text-gray-500'
                 }`}
             >
               {isJoining ? '参加中...' : '参加する'}
@@ -209,9 +209,34 @@ export function RoomView() {
                 {participant.isFacilitator && (
                   <span className="text-xs text-blue-600">ファシリテーター</span>
                 )}
+                {participant.hasVoted && (
+                  <div className="mt-2 text-center">
+                    <span className="text-xs text-gray-500">投票済み</span>
+                  </div>
+                )}
               </div>
             ))}
           </div>
+          {currentTask && !currentTask.isRevealed && (
+            <div className="mt-4 rounded-lg bg-blue-50 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-blue-900">
+                  投票状況: {participants.filter(p => p.hasVoted).length} / {participants.length} 人
+                </span>
+                {allVoted && (
+                  <span className="text-sm font-bold text-green-600">
+                    全員投票完了！
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 h-2 w-full rounded-full bg-blue-200">
+                <div
+                  className="h-2 rounded-full bg-green-500 transition-all duration-300"
+                  style={{ width: `${(participants.filter(p => p.hasVoted).length / participants.length) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* タスク入力（ファシリテーターのみ） */}
@@ -256,6 +281,9 @@ export function RoomView() {
                       <div className="rounded-lg border bg-white p-3">
                         <p className="text-sm text-gray-600">{participant.nickname}</p>
                         <p className="text-2xl font-bold text-blue-600">{participant.vote || '-'}</p>
+                        {participant.isFacilitator && (
+                          <span className="text-xs text-blue-600">ファシリテーター</span>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -266,6 +294,32 @@ export function RoomView() {
                     <p className="text-3xl font-bold text-green-600">{average}</p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ファシリテーター用投票状況（非公開時） */}
+            {isFacilitator && currentTask && !currentTask.isRevealed && (
+              <div className="mb-4 rounded-lg bg-yellow-50 p-4">
+                <h3 className="mb-3 font-medium text-gray-900">投票状況（ファシリテーター専用）</h3>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {participants.map((participant) => (
+                    <div key={participant.id} className="text-center">
+                      <div className={`rounded-lg border p-3 ${participant.hasVoted ? 'border-green-300 bg-green-100' : 'border-gray-300 bg-gray-100'}`}>
+                        <p className="text-sm text-gray-600">{participant.nickname}</p>
+                        <p className="text-lg font-bold">
+                          {participant.hasVoted ? (
+                            <span className="text-green-600">✓ 投票済み</span>
+                          ) : (
+                            <span className="text-gray-500">待機中</span>
+                          )}
+                        </p>
+                        {participant.isFacilitator && (
+                          <span className="text-xs text-blue-600">ファシリテーター</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

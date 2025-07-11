@@ -103,14 +103,21 @@ export const useRoomView = () => {
       // メンバー名を英数字のみに制限（SkyWayの要件）
       const memberName = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
+      // メタデータを作成
+      const memberMetadata = {
+        userId: memberName, // ユーザーIDとしてメンバー名を使用
+        nickname: nickname,
+        isFacilitator: isFacilitatorBool,
+      }
+      console.log('Joining with metadata:', memberMetadata)
+
       // ルームメンバーとして参加
       const member = await newRoom.join({
         name: memberName,
-        metadata: JSON.stringify({
-          nickname: nickname,
-          isFacilitator: isFacilitatorBool,
-        }),
+        metadata: JSON.stringify(memberMetadata),
       })
+
+      console.log('Joined as member:', member.id, 'with metadata:', member.metadata)
 
       // データストリームを作成
       const stream = await SkyWayStreamFactory.createDataStream()
@@ -129,6 +136,39 @@ export const useRoomView = () => {
             console.error('データストリームメッセージの解析エラー:', err, 'Raw data:', data)
           }
         })
+
+      // 既存の参加者を取得
+      console.log('Room members:', newRoom.members)
+      console.log('Room members length:', newRoom.members.length)
+
+      // メンバー情報の取得方法を試行
+      let existingMembers: any[] = []
+      if (newRoom.members && newRoom.members.length > 0) {
+        existingMembers = newRoom.members.filter((m: any) => m.id !== member.id)
+      } else if ((newRoom as any).members) {
+        existingMembers = (newRoom as any).members.filter((m: any) => m.id !== member.id)
+      }
+
+      console.log('Existing members:', existingMembers.length)
+      for (const existingMember of existingMembers) {
+        try {
+          console.log('Existing member object:', existingMember)
+          console.log('Existing member id:', existingMember.id)
+          console.log('Existing member metadata:', existingMember.metadata)
+          const metadata = JSON.parse(existingMember.metadata || '{}')
+          console.log('Parsed existing member metadata:', metadata)
+          const existingParticipant: Participant = {
+            id: metadata.userId || existingMember.id || `member-${Date.now()}`,
+            nickname: metadata.nickname || 'Unknown',
+            isFacilitator: metadata.isFacilitator || false,
+            hasVoted: false,
+          }
+          console.log('Created existing participant:', existingParticipant)
+          setParticipants(prev => [...prev, existingParticipant])
+        } catch (err) {
+          console.error('既存参加者情報の解析エラー:', err)
+        }
+      }
 
       // 既存のデータストリームを購読
       const existingStreams = newRoom.publications.filter(pub => pub.contentType === 'data')
@@ -153,25 +193,31 @@ export const useRoomView = () => {
 
       // 参加者リストの初期化
       const initialParticipants: Participant[] = [{
-        id: member.id,
+        id: memberName, // メタデータのuserIdと一致させる
         nickname: nickname as string,
         isFacilitator: isFacilitatorBool,
         hasVoted: false,
       }]
 
+      console.log('Initial participants:', initialParticipants)
       setParticipants(initialParticipants)
       setLocalMember(member)
 
       // 他の参加者の参加を監視
       newRoom.onMemberJoined.add(async (joinedMember: any) => {
         try {
+          console.log('Member joined object:', joinedMember)
+          console.log('Member joined id:', joinedMember.id)
+          console.log('Member joined metadata:', joinedMember.metadata)
           const metadata = JSON.parse(joinedMember.metadata || '{}')
+          console.log('Parsed metadata:', metadata)
           const newParticipant: Participant = {
-            id: joinedMember.id,
+            id: metadata.userId || joinedMember.id || `member-${Date.now()}`,
             nickname: metadata.nickname || 'Unknown',
             isFacilitator: metadata.isFacilitator || false,
             hasVoted: false,
           }
+          console.log('Created participant:', newParticipant)
           setParticipants(prev => [...prev, newParticipant])
           console.log('新しい参加者が参加:', newParticipant.nickname)
 
@@ -257,11 +303,16 @@ export const useRoomView = () => {
         if (message.userId && message.point) {
           console.log('Processing vote:', message.userId, message.point)
           setParticipants(prev => {
-            const updated = prev.map(p =>
-              p.id === message.userId
-                ? { ...p, hasVoted: true, vote: message.point }
-                : p
-            )
+            console.log('Current participants before update:', prev)
+            const updated = prev.map(p => {
+              if (p.id === message.userId) {
+                console.log('Found matching participant:', p.nickname, 'updating vote to:', message.point)
+
+                return { ...p, hasVoted: true, vote: message.point }
+              }
+
+              return p
+            })
             console.log('Updated participants:', updated)
 
             return updated
@@ -318,9 +369,13 @@ export const useRoomView = () => {
 
     try {
       console.log('Sending vote:', point)
+      // ローカルメンバーのメタデータからuserIdを取得
+      const localMetadata = JSON.parse(localMember.metadata || '{}')
+      const userId = localMetadata.userId || localMember.id
+
       const message = {
         type: 'vote',
-        userId: localMember.id,
+        userId: userId,
         point,
       }
 
