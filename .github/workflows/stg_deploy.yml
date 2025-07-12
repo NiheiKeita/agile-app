@@ -20,13 +20,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Create .env file from secrets
+      - name: Create .env file, firebase-messaging-sw.js and firebase_env.json
         run: |
+          # .envファイルを作成
           cat > .env << EOF
-          NEXT_PUBLIC_SKYWAY_TOKEN=${{ secrets.NEXT_PUBLIC_SKYWAY_TOKEN }}
-          EOF
-        env:
+          # Firebase Configuration
+          NEXT_PUBLIC_SKYWAY_APP_ID=${{ secrets.NEXT_PUBLIC_SKYWAY_APP_ID }}
           NEXT_PUBLIC_SKYWAY_TOKEN: ${{ secrets.NEXT_PUBLIC_SKYWAY_TOKEN }}
+          EOF
 
       - name: Build Next.js
         run: npm run build
