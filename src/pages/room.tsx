@@ -1,5 +1,5 @@
 import { useRouter } from 'next/router'
-import { RoomView } from '../../views/RoomView'
+import { RoomView } from '../views/RoomView'
 
 export default function RoomPage() {
   const router = useRouter()

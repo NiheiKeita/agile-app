@@ -98,7 +98,7 @@ export function RoomView() {
 
   // URL共有機能
   const shareRoomUrl = async () => {
-    const roomUrl = `${window.location.origin}/room/${roomId}`
+    const roomUrl = `${window.location.origin}/room?roomId=${roomId}`
     try {
       await navigator.clipboard.writeText(roomUrl)
       alert('ルームURLをクリップボードにコピーしました！')

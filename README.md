@@ -41,6 +41,20 @@ NEXT_PUBLIC_SKYWAY_TOKEN=your_skyway_token_here
 
 **注意**: SkyWayのAPIキーは公開リポジトリにコミットしないでください。`.env.local`ファイルは`.gitignore`に含まれています。
 
+### 3. GitHub Secrets設定（デプロイ用）
+
+GitHub Actionsでデプロイする場合は、以下のシークレットを設定してください：
+
+1. GitHubリポジトリの「Settings」→「Secrets and variables」→「Actions」
+2. 以下のシークレットを追加：
+   - `NEXT_PUBLIC_SKYWAY_TOKEN`: SkyWayのAPIトークン
+   - `STG_FTP_SERVER`: ステージング環境のFTPサーバー
+   - `STG_FTP_USERNAME`: ステージング環境のFTPユーザー名
+   - `STG_FTP_PASSWORD`: ステージング環境のFTPパスワード
+   - `PROD_FTP_SERVER`: 本番環境のFTPサーバー
+   - `PROD_FTP_USERNAME`: 本番環境のFTPユーザー名
+   - `PROD_FTP_PASSWORD`: 本番環境のFTPパスワード
+
 ### 3. 開発サーバーの起動
 
 ```bash
@@ -115,6 +129,13 @@ src/
 ```
 
 ## デプロイ
+
+### GitHub Actions（推奨）
+
+1. GitHub Secretsに必要な環境変数を設定（上記参照）
+2. タグをプッシュしてデプロイ：
+   - ステージング環境: `git tag stg.v1.0.0 && git push origin stg.v1.0.0`
+   - 本番環境: `git tag v1.0.0 && git push origin v1.0.0`
 
 ### Vercel
 

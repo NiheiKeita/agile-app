@@ -130,13 +130,12 @@ export function HomeView() {
                     <li>• Next.js</li>
                     <li>• Tailwind CSS</li>
                     <li>• SkyWay（P2P通信）</li>
-                    <li>• Vercel（デプロイ）</li>
+
                   </ul>
                 </div>
                 <div>
                   <h4 className="mb-4 text-xl font-semibold text-gray-900">特徴</h4>
                   <ul className="space-y-2 text-gray-600">
-                    <li>• バックエンドサーバー不要</li>
                     <li>• リアルタイム同期</li>
                     <li>• モバイルファーストデザイン</li>
                     <li>• 簡単セットアップ</li>

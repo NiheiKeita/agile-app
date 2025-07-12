@@ -28,8 +28,8 @@ export const useTopView = () => {
     const roomId = generateRoomId()
     const nickname = formData.nickname || 'ファシリテーター'
 
-    // ルーム作成ページに遷移
-    router.push(`/room/${roomId}?nickname=${encodeURIComponent(nickname)}&isFacilitator=true`)
+    // ルーム作成ページに遷移（クエリパラメータを使用）
+    router.push(`/room?roomId=${roomId}&nickname=${encodeURIComponent(nickname)}&isFacilitator=true`)
   }
 
   const handleJoinRoom = () => {
@@ -37,8 +37,8 @@ export const useTopView = () => {
       return
     }
 
-    // ルーム参加ページに遷移
-    router.push(`/room/${formData.roomId}?nickname=${encodeURIComponent(formData.nickname)}&isFacilitator=false`)
+    // ルーム参加ページに遷移（クエリパラメータを使用）
+    router.push(`/room?roomId=${formData.roomId}&nickname=${encodeURIComponent(formData.nickname)}&isFacilitator=false`)
   }
 
   const updateFormData = (field: keyof RoomFormData, value: string) => {
