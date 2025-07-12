@@ -1,10 +1,10 @@
 name: deploy to stg-xserver
 
-on: ["pull_request"]
-# on: 
-#   push:
-#     tags:
-#       - 'stg.v.*'
+# on: ["pull_request"]
+on: 
+  push:
+    tags:
+      - 'stg.v.*'
 
 jobs:
   deploy:
