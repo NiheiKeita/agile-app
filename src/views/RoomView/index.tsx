@@ -20,6 +20,7 @@ export function RoomView() {
     revealCards,
     nextTask,
     onDisableParticipant, // 追加
+    onEnableParticipant, // 追加
   } = useRoomView()
 
   const [inputNickname, setInputNickname] = useState('')
@@ -194,6 +195,17 @@ export function RoomView() {
                   <span className="text-sm font-medium text-gray-900">
                     {participant.nickname}
                   </span>
+                  {isFacilitator && !participant.isFacilitator && participant.disabled && (
+                    <button
+                      className="ml-2 rounded-full bg-green-100 p-1 hover:bg-green-200"
+                      title="この参加者を有効化"
+                      onClick={() => onEnableParticipant(participant.id)}
+                    >
+                      <svg className="size-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" />
+                      </svg>
+                    </button>
+                  )}
                   {isFacilitator && !participant.isFacilitator && !participant.disabled && (
                     <button
                       className="ml-2 rounded-full bg-red-100 p-1 hover:bg-red-200"

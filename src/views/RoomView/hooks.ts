@@ -438,6 +438,13 @@ export const useRoomView = () => {
           ))
         }
         break
+      case 'enable':
+        if (message.userId) {
+          setParticipants(prev => prev.map(p =>
+            p.id === message.userId ? { ...p, disabled: false } : p
+          ))
+        }
+        break
     }
   }, [])
 
@@ -621,6 +628,14 @@ export const useRoomView = () => {
     ))
   }, [sendMessage])
 
+  // 参加者を有効化する関数
+  const onEnableParticipant = useCallback((participantId: string) => {
+    sendMessage({ type: 'enable', userId: participantId })
+    setParticipants(prev => prev.map(p =>
+      p.id === participantId ? { ...p, disabled: false } : p
+    ))
+  }, [sendMessage])
+
   useEffect(() => {
     if (roomId && nickname) {
       connectToRoom()
@@ -647,5 +662,6 @@ export const useRoomView = () => {
     revealCards,
     nextTask,
     onDisableParticipant,
+    onEnableParticipant,
   }
 } 
