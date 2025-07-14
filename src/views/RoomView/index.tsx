@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useRoomView, POINT_CARDS } from './hooks'
+import { FlipCard } from '../../components/FlipCard'
 
 export function RoomView() {
   const {
@@ -19,10 +20,13 @@ export function RoomView() {
     sendTask,
     revealCards,
     nextTask,
+    onDisableParticipant, // 追加
+    onEnableParticipant, // 追加
   } = useRoomView()
 
   const [inputNickname, setInputNickname] = useState('')
   const [isJoining, setIsJoining] = useState(false)
+  const [isFlipping, setIsFlipping] = useState(false)
 
   // 名前入力画面
   if (!nickname) {
@@ -115,6 +119,15 @@ export function RoomView() {
     }
   }
 
+  // カード公開ボタンのハンドラ
+  const handleRevealCards = () => {
+    setIsFlipping(true)
+    setTimeout(() => {
+      setIsFlipping(false)
+      revealCards()
+    }, 700)
+  }
+
   if (isConnecting) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -147,6 +160,41 @@ export function RoomView() {
       </div>
     )
   }
+
+  // 参加者カード共通表示
+  const renderParticipantCard = (participant: any, isRevealed: boolean) => (
+    <div key={participant.id} className="text-center">
+      <FlipCard
+        isFlipped={isRevealed}
+        width={100}
+        height={140}
+        className="mx-auto"
+        back={
+          <div className="flex size-full flex-col items-center justify-center rounded-lg border border-gray-300 bg-gradient-to-br from-gray-300 to-gray-400 text-4xl font-bold text-gray-700">
+            <span className="text-5xl">♠</span>
+            <span className="mt-2 text-base text-gray-500">POKER</span>
+          </div>
+        }
+        front={
+          <div className="flex size-full flex-col items-center justify-center rounded-lg border border-blue-400 bg-white text-blue-700">
+            <span className="text-2xl font-bold">{participant.vote || '-'}</span>
+            <span className="mt-2 text-xs text-gray-500">{participant.nickname}</span>
+            {participant.isFacilitator && (
+              <span className="mt-1 text-xs text-blue-600">ファシリテーター</span>
+            )}
+          </div>
+        }
+      />
+      {/* 状態ラベル */}
+      {participant.hasVoted && !participant.disabled && (
+        <div className="mt-2 text-center">
+          <span className="text-xs font-bold text-green-600">
+            {isRevealed ? '✓ 投票済み' : '✓ 選択済み'}
+          </span>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -187,27 +235,49 @@ export function RoomView() {
             {participants.map((participant) => (
               <div
                 key={participant.id}
-                className={`rounded-lg border p-3 ${participant.hasVoted
-                  ? 'border-green-200 bg-green-50'
-                  : 'border-gray-200 bg-gray-50'
-                  }`}
+                className={`rounded-lg border p-3 ${participant.disabled ? 'border-gray-300 bg-gray-200 opacity-60' : participant.hasVoted ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-900">
                     {participant.nickname}
                   </span>
-                  {participant.hasVoted && (
+                  {isFacilitator && !participant.isFacilitator && participant.disabled && (
+                    <button
+                      className="ml-2 rounded-full bg-green-100 p-1 hover:bg-green-200"
+                      title="この参加者を有効化"
+                      onClick={() => onEnableParticipant(participant.id)}
+                    >
+                      <svg className="size-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m6-6H6" />
+                      </svg>
+                    </button>
+                  )}
+                  {isFacilitator && !participant.isFacilitator && !participant.disabled && (
+                    <button
+                      className="ml-2 rounded-full bg-red-100 p-1 hover:bg-red-200"
+                      title="この参加者を無効化"
+                      onClick={() => onDisableParticipant(participant.id)}
+                    >
+                      <svg className="size-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
+                      </svg>
+                    </button>
+                  )}
+                  {participant.hasVoted && !participant.disabled && (
                     <span className="text-green-600">
                       <svg className="size-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     </span>
                   )}
+                  {participant.disabled && (
+                    <span className="ml-2 text-xs text-gray-500">無効</span>
+                  )}
                 </div>
                 {participant.isFacilitator && (
                   <span className="text-xs text-blue-600">ファシリテーター</span>
                 )}
-                {participant.hasVoted && (
+                {participant.hasVoted && !participant.disabled && (
                   <div className="mt-2 text-center">
                     <span className="text-xs text-gray-500">投票済み</span>
                   </div>
@@ -269,22 +339,22 @@ export function RoomView() {
             <h2 className="mb-2 text-lg font-semibold text-gray-900">現在のタスク</h2>
             <p className="mb-4 text-gray-700">{currentTask.text}</p>
 
-            {/* 投票結果（公開後） */}
-            {currentTask.isRevealed && (
+            {/* 投票結果も同じカードUIで表示 */}
+            {/* {currentTask && (
               <div className="mb-4 rounded-lg bg-gray-50 p-4">
                 <h3 className="mb-3 font-medium text-gray-900">投票結果</h3>
                 <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {participants.map((participant) => (
-                    <div key={participant.id} className="text-center">
-                      <div className="rounded-lg border bg-white p-3">
-                        <p className="text-sm text-gray-600">{participant.nickname}</p>
-                        <p className="text-2xl font-bold text-blue-600">{participant.vote || '-'}</p>
-                        {participant.isFacilitator && (
-                          <span className="text-xs text-blue-600">ファシリテーター</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                  {participants.map((participant) => renderParticipantCard(participant, currentTask.isRevealed))}
+                </div>
+              </div>
+            )} */}
+
+            {/* ファシリテーター専用投票状況 */}
+            {isFacilitator && currentTask && (
+              <div className="mb-4 rounded-lg bg-yellow-50 p-4">
+                <h3 className="mb-3 font-medium text-gray-900">投票状況（ファシリテーター専用）</h3>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {participants.map((participant) => renderParticipantCard(participant, currentTask.isRevealed))}
                 </div>
                 {average && (
                   <div className="text-center">
@@ -295,39 +365,14 @@ export function RoomView() {
               </div>
             )}
 
-            {/* ファシリテーター用投票状況（非公開時） */}
-            {isFacilitator && currentTask && !currentTask.isRevealed && (
-              <div className="mb-4 rounded-lg bg-yellow-50 p-4">
-                <h3 className="mb-3 font-medium text-gray-900">投票状況（ファシリテーター専用）</h3>
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {participants.map((participant) => (
-                    <div key={participant.id} className="text-center">
-                      <div className={`rounded-lg border p-3 ${participant.hasVoted ? 'border-green-300 bg-green-100' : 'border-gray-300 bg-gray-100'}`}>
-                        <p className="text-sm text-gray-600">{participant.nickname}</p>
-                        <p className="text-lg font-bold">
-                          {participant.hasVoted ? (
-                            <span className="text-green-600">✓ 投票済み</span>
-                          ) : (
-                            <span className="text-gray-500">待機中</span>
-                          )}
-                        </p>
-                        {participant.isFacilitator && (
-                          <span className="text-xs text-blue-600">ファシリテーター</span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* ファシリテーターコントロール */}
             {isFacilitator && (
               <div className="flex gap-3">
                 {!currentTask.isRevealed && allVoted && (
                   <button
-                    onClick={revealCards}
+                    onClick={handleRevealCards}
                     className="rounded-lg bg-green-600 px-6 py-2 font-medium text-white hover:bg-green-700"
+                    disabled={isFlipping}
                   >
                     カードを公開
                   </button>
