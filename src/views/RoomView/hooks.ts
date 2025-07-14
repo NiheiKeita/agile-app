@@ -7,6 +7,7 @@ export interface Participant {
   isFacilitator: boolean
   hasVoted: boolean
   vote?: string
+  disabled?: boolean // 追加: 無効状態
 }
 
 export interface Task {
@@ -429,6 +430,14 @@ export const useRoomView = () => {
         setSelectedCard('')
         setParticipants(prev => prev.map(p => ({ ...p, hasVoted: false, vote: undefined })))
         break
+
+      case 'disable':
+        if (message.userId) {
+          setParticipants(prev => prev.map(p =>
+            p.id === message.userId ? { ...p, disabled: true } : p
+          ))
+        }
+        break
     }
   }, [])
 
@@ -600,7 +609,17 @@ export const useRoomView = () => {
   }, [currentTask, participants])
 
   // 全員が投票したかチェック
-  const allVoted = participants.length > 0 && participants.every(p => p.hasVoted)
+  const allVoted = participants.filter(p => !p.disabled).length > 0 && participants.filter(p => !p.disabled).every(p => p.hasVoted)
+
+  // 参加者を無効化する関数
+  const onDisableParticipant = useCallback((participantId: string) => {
+    // SkyWayで全員に通知
+    sendMessage({ type: 'disable', userId: participantId })
+    // ローカルも即時反映
+    setParticipants(prev => prev.map(p =>
+      p.id === participantId ? { ...p, disabled: true } : p
+    ))
+  }, [sendMessage])
 
   useEffect(() => {
     if (roomId && nickname) {
@@ -627,5 +646,6 @@ export const useRoomView = () => {
     sendTask,
     revealCards,
     nextTask,
+    onDisableParticipant,
   }
 } 

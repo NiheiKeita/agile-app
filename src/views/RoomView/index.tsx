@@ -19,6 +19,7 @@ export function RoomView() {
     sendTask,
     revealCards,
     nextTask,
+    onDisableParticipant, // 追加
   } = useRoomView()
 
   const [inputNickname, setInputNickname] = useState('')
@@ -187,27 +188,38 @@ export function RoomView() {
             {participants.map((participant) => (
               <div
                 key={participant.id}
-                className={`rounded-lg border p-3 ${participant.hasVoted
-                  ? 'border-green-200 bg-green-50'
-                  : 'border-gray-200 bg-gray-50'
-                  }`}
+                className={`rounded-lg border p-3 ${participant.disabled ? 'border-gray-300 bg-gray-200 opacity-60' : participant.hasVoted ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-900">
                     {participant.nickname}
                   </span>
-                  {participant.hasVoted && (
+                  {isFacilitator && !participant.isFacilitator && !participant.disabled && (
+                    <button
+                      className="ml-2 rounded-full bg-red-100 p-1 hover:bg-red-200"
+                      title="この参加者を無効化"
+                      onClick={() => onDisableParticipant(participant.id)}
+                    >
+                      <svg className="size-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 12H6" />
+                      </svg>
+                    </button>
+                  )}
+                  {participant.hasVoted && !participant.disabled && (
                     <span className="text-green-600">
                       <svg className="size-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     </span>
                   )}
+                  {participant.disabled && (
+                    <span className="ml-2 text-xs text-gray-500">無効</span>
+                  )}
                 </div>
                 {participant.isFacilitator && (
                   <span className="text-xs text-blue-600">ファシリテーター</span>
                 )}
-                {participant.hasVoted && (
+                {participant.hasVoted && !participant.disabled && (
                   <div className="mt-2 text-center">
                     <span className="text-xs text-gray-500">投票済み</span>
                   </div>
