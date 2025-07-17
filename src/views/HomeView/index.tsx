@@ -7,6 +7,10 @@ export function HomeView() {
     router.push('/planning_poker')
   }
 
+  const handleStartTradeoff = () => {
+    router.push('/room/tradeoff')
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* ヘッダー */}
@@ -46,6 +50,15 @@ export function HomeView() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
                 プランニングポーカーを始める
+              </button>
+              <button
+                onClick={handleStartTradeoff}
+                className="flex items-center justify-center gap-2 rounded-lg bg-pink-600 px-8 py-3 font-semibold text-white transition-colors duration-200 hover:bg-pink-700"
+              >
+                <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 01-8 0M12 3v4m0 0v4" />
+                </svg>
+                トレードオフスライダーを始める
               </button>
               <button className="rounded-lg bg-gray-100 px-8 py-3 font-semibold text-gray-700 transition-colors duration-200 hover:bg-gray-200">
                 詳細を見る
