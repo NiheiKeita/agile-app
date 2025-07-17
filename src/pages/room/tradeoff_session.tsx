@@ -1,4 +1,5 @@
 import { useTradeoffRoomView } from '../../views/RoomView/hooks'
+import { useCallback } from 'react'
 
 export default function TradeoffSessionPage() {
   const {
@@ -16,6 +17,29 @@ export default function TradeoffSessionPage() {
     setLocked,
   } = useTradeoffRoomView()
 
+  // ルームURL共有ボタンのハンドラ
+  const handleShareUrl = useCallback(async () => {
+    const url = typeof window !== 'undefined' ? window.location.href : ''
+    try {
+      await navigator.clipboard.writeText(url)
+      alert('ルームURLをクリップボードにコピーしました！')
+    } catch (err) {
+      // フォールバック
+      const textArea = document.createElement('textarea')
+      textArea.value = url
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      alert('ルームURLをクリップボードにコピーしました！')
+    }
+  }, [])
+
+  // テーマ送信ボタンのハンドラ（SkyWay同期）
+  const handleSendTheme = useCallback(() => {
+    setTheme(theme) // useTradeoffRoomViewのsetThemeはSkyWay同期も行う
+  }, [setTheme, theme])
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-pink-50 to-yellow-100 p-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-8 shadow-xl">
@@ -24,6 +48,15 @@ export default function TradeoffSessionPage() {
           <div>ルームID: <span className="font-mono">{roomId}</span></div>
           <div>ニックネーム: <span className="font-mono">{nickname}</span></div>
           <div>ファシリテーター: <span className="font-mono">{isFacilitator ? 'はい' : 'いいえ'}</span></div>
+          {/* URL共有ボタン */}
+          {roomId && (
+            <button
+              onClick={handleShareUrl}
+              className="ml-2 mt-2 rounded bg-green-500 px-3 py-1 text-sm font-medium text-white hover:bg-green-600"
+            >
+              URL共有
+            </button>
+          )}
         </div>
         {error && (
           <div className="mb-4 rounded bg-red-100 p-2 text-red-700">{error}</div>
@@ -54,10 +87,9 @@ export default function TradeoffSessionPage() {
             <div className="mt-2 flex gap-2">
               <button
                 className="rounded bg-pink-600 px-4 py-2 text-white hover:bg-pink-700"
-                // onClick={handleSendTheme} // SkyWay同期時に実装
-                disabled
+                onClick={handleSendTheme}
               >
-                テーマを全員に送信（未実装）
+                テーマを全員に送信
               </button>
               <button
                 className={`rounded px-4 py-2 text-white ${locked ? 'bg-gray-400' : 'bg-yellow-500 hover:bg-yellow-600'}`}
